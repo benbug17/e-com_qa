@@ -1,0 +1,7 @@
+case_id,username,password,expected_status
+empty_both,,,400
+empty_password,qa_user,,400
+wrong_password,qa_user,wrong,401
+unknown_user,nobody,Passw0rd!,401
+sql_injection,' OR '1'='1,x,401
+case_sensitive_user,QA_USER,Passw0rd!,401
