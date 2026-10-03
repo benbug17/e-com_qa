@@ -1,3 +1,7 @@
+from selenium.common.exceptions import (NoSuchElementException,
+                                        StaleElementReferenceException,
+                                        TimeoutException,
+                                        WebDriverException)
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from config import settings
@@ -6,7 +10,8 @@ from config import settings
 class BasePage:
     def __init__(self, driver):
         self.driver = driver
-        self.wait = WebDriverWait(driver, settings.TIMEOUT)
+        self.wait = WebDriverWait(driver, settings.TIMEOUT,
+                                  ignored_exceptions=[StaleElementReferenceException])
 
     def open(self, path=""):
         self.driver.get(f"{settings.BASE_URL}{path}")
@@ -26,5 +31,10 @@ class BasePage:
     def text(self, locator):
         return self.find(locator).text
 
-    def is_present(self, locator):
-        return len(self.driver.find_elements(*locator)) > 0
+    def is_present(self, locator, timeout=3):
+        try:
+            WebDriverWait(self.driver, timeout).until(
+                lambda d: len(d.find_elements(*locator)) > 0)
+            return True
+        except TimeoutException:
+            return False

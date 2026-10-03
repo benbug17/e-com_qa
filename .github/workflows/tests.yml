@@ -1,0 +1,72 @@
+name: QA Automation
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Test suite
+        type: choice
+        default: smoke
+        options: [smoke, regression, negative, all]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: qa
+          POSTGRES_PASSWORD: qa
+          POSTGRES_DB: shop
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U qa -d shop"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      BASE_URL: http://127.0.0.1:5000
+      DATABASE_URL: postgresql://qa:qa@127.0.0.1:5432/shop
+      HEADLESS: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create schema and seed data
+        run: python -m shop_app.seed
+
+      - name: Start the app
+        run: |
+          nohup python -m shop_app.app > app.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf $BASE_URL/api/health && break || sleep 1; done
+
+      - name: Postman collection (Newman)
+        continue-on-error: true
+        run: npx --yes newman run postman/ecommerce_api.postman_collection.json --reporters cli,junit --reporter-junit-export reports/newman.xml
+
+      - name: Pytest
+        run: |
+          SUITE="${{ github.event.inputs.suite || 'smoke' }}"
+          if [ "$SUITE" = "all" ]; then pytest; else pytest -m "$SUITE"; fi
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            reports/
+            app.log

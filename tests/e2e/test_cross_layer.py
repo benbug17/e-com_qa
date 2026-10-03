@@ -48,4 +48,5 @@ def test_ui_checkout_visible_in_db_and_api(driver, logged_in, db, api):
 @pytest.mark.regression
 def test_ui_add_to_cart_persists_in_db(logged_in, db):
     logged_in.add_to_cart(1).add_to_cart(1)
+    assert logged_in.cart_count() == 2, "UI badge did not reach 2 (second click lost?)"
     assert db.fetch_one("SELECT quantity FROM cart_items WHERE product_id=1")["quantity"] == 2

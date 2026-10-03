@@ -3,8 +3,8 @@ from config import settings
 
 
 class ApiClient:
-    def __init__(self, base_url=settings.BASE_URL):
-        self.base = base_url
+    def __init__(self, base_url=None):
+        self.base = base_url or settings.BASE_URL
         self.session = requests.Session()
         self.token = None
 

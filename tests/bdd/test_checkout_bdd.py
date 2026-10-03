@@ -17,6 +17,7 @@ def on_login(driver):
 def logged(driver, user):
     pwd = {"qa_user": "Passw0rd!", "jane": "Secret123!"}[user]
     LoginPage(driver).load().login(user, pwd)
+    ProductsPage(driver).title()      # wait until login has completed
 
 
 @when(parsers.parse('I login as "{user}" with password "{pwd}"'))
@@ -31,7 +32,8 @@ def add(driver, pid):
 
 @when("I checkout")
 def checkout(driver):
-    CartPage(driver).load().checkout()
+    ProductsPage(driver).go_to_cart()
+    CartPage(driver).checkout()
 
 
 @then("I see an order confirmation")
