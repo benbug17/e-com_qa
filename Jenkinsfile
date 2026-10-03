@@ -29,10 +29,12 @@ pipeline {
       }
     }
 
-    stage('Pytest') {
+        stage('Pytest') {
       steps {
         sh '''
           mkdir -p reports
+          SUITE="${SUITE:-smoke}"
+          PARALLEL="${PARALLEL:-false}"
           ARGS="-m $SUITE"
           [ "$SUITE" = "all" ] && ARGS=""
           [ "$PARALLEL" = "true" ] && ARGS="$ARGS -n 2"
