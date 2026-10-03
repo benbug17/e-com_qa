@@ -9,6 +9,7 @@ import os
 import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 from config import settings
@@ -105,7 +106,10 @@ def driver(request):
             opts.add_argument("--headless=new")
         for a in ("--no-sandbox", "--disable-dev-shm-usage", "--window-size=1366,900"):
             opts.add_argument(a)
-        drv = webdriver.Chrome(options=opts)
+        if os.getenv("CHROME_BIN"):
+            opts.binary_location = os.environ["CHROME_BIN"]
+        service = ChromeService(os.environ["CHROMEDRIVER"]) if os.getenv("CHROMEDRIVER") else ChromeService()
+        drv = webdriver.Chrome(service=service, options=opts)
     request.node.driver = drv
     yield drv
     drv.quit()

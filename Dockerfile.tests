@@ -1,0 +1,12 @@
+# Test runner: Python + Chromium + the framework
+FROM python:3.12-slim-bookworm
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends chromium chromium-driver fonts-liberation \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+RUN mkdir -p reports
+ENV CHROME_BIN=/usr/bin/chromium CHROMEDRIVER=/usr/bin/chromedriver PYTHONUNBUFFERED=1
+CMD ["pytest", "-m", "smoke"]

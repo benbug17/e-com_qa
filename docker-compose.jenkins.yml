@@ -1,0 +1,12 @@
+name: jenkins-ci
+services:
+  jenkins:
+    build: { context: ., dockerfile: Dockerfile.jenkins }
+    user: root                      # needed to use the mounted Docker socket (local learning setup)
+    ports: ["8080:8080"]
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+volumes:
+  jenkins_home:

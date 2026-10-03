@@ -1,37 +1,30 @@
 pipeline {
   agent any
-  options { timestamps(); timeout(time: 30, unit: 'MINUTES') }
-  environment {
-    BASE_URL     = 'http://localhost:5000'
-    DATABASE_URL = 'postgresql://qa:qa@localhost:5432/shop'
-    HEADLESS     = 'true'
-  }
-  parameters {
-    choice(name: 'SUITE', choices: ['smoke', 'regression', 'negative', 'all'], description: 'Test suite to run')
-  }
-  stages {
-    stage('Checkout') { steps { checkout scm } }
+  options { timestamps(); timeout(time: 45, unit: 'MINUTES') }
 
-    stage('Setup') {
-      steps {
-        sh '''
-          python3 -m venv venv
-          . venv/bin/activate
-          pip install -r requirements.txt
-          docker compose up -d db
-          until docker compose exec -T db pg_isready -U qa -d shop; do sleep 2; done
-          python -m shop_app.seed
-          nohup python -m shop_app.app > app.log 2>&1 &
-          for i in $(seq 1 20); do curl -sf $BASE_URL/api/health && break || sleep 1; done
-        '''
-      }
+  parameters {
+    choice(name: 'SUITE', choices: ['smoke', 'regression', 'negative', 'all'], description: 'Pytest suite to run')
+    booleanParam(name: 'PARALLEL', defaultValue: false, description: 'Run with pytest -n 2')
+  }
+
+  environment {
+    COMPOSE = "docker compose -f docker-compose.ci.yml -p qa-ci-${env.BUILD_NUMBER}"
+  }
+
+  stages {
+    stage('Build images') {
+      steps { sh '$COMPOSE build' }
     }
 
     stage('API tests (Newman)') {
       steps {
         sh '''
-          npx --yes newman run postman/ecommerce_api.postman_collection.json \
-              --reporters cli,junit --reporter-junit-export reports/newman.xml || true
+          mkdir -p reports
+          rc=0
+          $COMPOSE run --name newman-$BUILD_NUMBER newman || rc=$?
+          docker cp newman-$BUILD_NUMBER:/etc/newman/newman.xml reports/newman.xml || true
+          docker rm -f newman-$BUILD_NUMBER || true
+          exit $rc
         '''
       }
     }
@@ -39,19 +32,26 @@ pipeline {
     stage('Pytest') {
       steps {
         sh '''
-          . venv/bin/activate
-          if [ "$SUITE" = "all" ]; then pytest -n 2; else pytest -m "$SUITE" -n 2; fi
+          mkdir -p reports
+          ARGS="-m $SUITE"
+          [ "$SUITE" = "all" ] && ARGS=""
+          [ "$PARALLEL" = "true" ] && ARGS="$ARGS -n 2"
+          rc=0
+          $COMPOSE run --name tests-$BUILD_NUMBER tests pytest $ARGS || rc=$?
+          docker cp tests-$BUILD_NUMBER:/app/reports/. reports/ || true
+          docker rm -f tests-$BUILD_NUMBER || true
+          exit $rc
         '''
       }
     }
   }
+
   post {
     always {
       junit allowEmptyResults: true, testResults: 'reports/*.xml'
       archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
-      publishHTML(target: [reportDir: 'reports', reportFiles: 'report.html', reportName: 'Pytest HTML Report', allowMissing: true, keepAll: true])
-      sh 'docker compose down -v || true; pkill -f shop_app.app || true'
+      sh '$COMPOSE down -v --remove-orphans || true'
     }
-    failure { echo 'Build failed: log defects using docs/defect_report_template.md' }
+    failure { echo 'Build failed: open the archived report.html / screenshots, then log a defect (docs/defect_report_template.md).' }
   }
 }

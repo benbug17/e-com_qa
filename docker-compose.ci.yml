@@ -1,0 +1,43 @@
+# Self-contained CI stack: no published ports, so it never clashes with your local DB/app.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: qa
+      POSTGRES_PASSWORD: qa
+      POSTGRES_DB: shop
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qa -d shop"]
+      interval: 3s
+      retries: 20
+
+  shopapp:
+    build: { context: ., dockerfile: Dockerfile }
+    environment:
+      DATABASE_URL: postgresql://qa:qa@db:5432/shop
+      PORT: "5000"
+    command: sh -c "python -m shop_app.seed && python -m shop_app.app"
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
+      interval: 3s
+      retries: 20
+
+  newman:
+    build: { context: ., dockerfile: Dockerfile.newman }
+    command: ["run", "/etc/newman/ecommerce_api.postman_collection.json",
+              "--env-var", "baseUrl=http://shopapp:5000",
+              "--reporters", "cli,junit", "--reporter-junit-export", "/etc/newman/newman.xml"]
+    depends_on:
+      shopapp: { condition: service_healthy }
+
+  tests:
+    build: { context: ., dockerfile: Dockerfile.tests }
+    shm_size: "1gb"
+    environment:
+      BASE_URL: http://shopapp:5000
+      DATABASE_URL: postgresql://qa:qa@db:5432/shop
+      HEADLESS: "true"
+    depends_on:
+      shopapp: { condition: service_healthy }
