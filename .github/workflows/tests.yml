@@ -54,7 +54,6 @@ jobs:
           for i in $(seq 1 20); do curl -sf $BASE_URL/api/health && break || sleep 1; done
 
       - name: Postman collection (Newman)
-        continue-on-error: true
         run: npx --yes newman run postman/ecommerce_api.postman_collection.json --reporters cli,junit --reporter-junit-export reports/newman.xml
 
       - name: Pytest
