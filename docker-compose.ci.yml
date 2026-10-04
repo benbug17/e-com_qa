@@ -1,4 +1,3 @@
-# Self-contained CI stack: no published ports, so it never clashes with your local DB/app.
 services:
   db:
     image: postgres:16
